@@ -20,6 +20,8 @@ services:
       - $HOME/.ssh:/home/${USER_NAME}/.ssh:ro
       # workspace
       - $HOME/ML/object-detection-pytorch/:/home/${USER_NAME}/object-detection-pytorch
+      # dataset
+      - $HOME/ML/dataset/:/home/${USER_NAME}/dataset
     hostname: object-detection-pytorch
     deploy:
       resources:
