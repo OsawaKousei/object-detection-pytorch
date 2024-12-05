@@ -23,6 +23,7 @@ services:
       # dataset
       - $HOME/ML/dataset/:/home/${USER_NAME}/dataset
     hostname: object-detection-pytorch
+    shm_size: '8gb'
     deploy:
       resources:
         reservations:
