@@ -4,13 +4,15 @@ import logging
 import os
 from logging import Formatter, StreamHandler, getLogger
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import torch
 import torch.utils.data as data
 from torch import nn, optim
-from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
-from src.baseline.ILSVRC_dataset import valid_dataset as dataset_
+from src.baseline.ILSVRC_dataset import ILSVRC2012Dataset
 from src.baseline.vit.vit_model import Vit
 
 # ログの設定
@@ -27,13 +29,13 @@ class VitTrainer:
     def __init__(
         self,
         ws_dir: str,
-        dataset: ImageFolder,
+        dataset: data.Dataset,
         net: nn.Module,
         criterion: nn.Module,
         optimizer: optim.Optimizer,
         device: torch.device,
-        batch_size: int = 64,
-        num_epochs: int = 10,
+        batch_size: int = 32,
+        num_epochs: int = 50,
     ) -> None:
         self.net = net
         self.criterion = criterion
@@ -59,13 +61,17 @@ class VitTrainer:
         self.batch_size = batch_size
         self.num_epochs = num_epochs
 
+        logger.info("Trainer initialized")
+
     def train(self) -> None:
+        self.net.to(self.device)
         # 学習と検証
         with tqdm(range(self.num_epochs), desc="Epoch") as tglobal:
             train_loss: list[float] = []
             train_acc: list[float] = []
             val_loss: list[float] = []
             val_acc: list[float] = []
+            logs: list[dict] = []
 
             for epoch in tglobal:
                 # 学習
@@ -80,9 +86,10 @@ class VitTrainer:
                         outputs = self.net(inputs)
                         loss = self.criterion(outputs, labels)
                         sum_loss += loss.item()
-                        _, predicted = outputs.max(1)
                         sum_total += labels.size(0)
-                        sum_correct += (predicted == labels).sum().item()
+                        predicted = torch.argmax(outputs, dim=1)
+                        gt = torch.argmax(labels, dim=1)
+                        sum_correct += (predicted == gt).sum().item()
                         loss.backward()
                         self.optimizer.step()
 
@@ -110,9 +117,10 @@ class VitTrainer:
                             outputs = self.net(inputs)
                             loss = self.criterion(outputs, labels)
                             sum_loss += loss.item()
-                            _, predicted = outputs.max(1)
                             sum_total += labels.size(0)
-                            sum_correct += (predicted == labels).sum().item()
+                            predicted = torch.argmax(outputs, dim=1)
+                            gt = torch.argmax(labels, dim=1)
+                            sum_correct += (predicted == gt).sum().item()
 
                             v.set_postfix(loss=loss.item())
 
@@ -127,6 +135,16 @@ class VitTrainer:
 
                 tglobal.set_postfix(loss=loss, acc=acc)
 
+                logs.append(
+                    {
+                        "epoch": epoch,
+                        "train_loss": np.mean(loss),
+                        "val_loss": np.mean(val_loss),
+                    }
+                )
+
+                self.save_logs(logs)
+
                 # モデルを保存
                 if (epoch + 1) % 5 == 0:
                     torch.save(
@@ -135,6 +153,19 @@ class VitTrainer:
                             self.ws_dir, "model", "model_{}.pth".format(epoch)
                         ),
                     )
+
+    def save_logs(self, logs: list) -> None:
+        df = pd.DataFrame(logs)
+        df.to_csv(os.path.join(self.ws_dir, "train_logs.csv"))
+
+        plt.plot(df["train_loss"], label="train_loss")
+        plt.plot(df["val_loss"], label="val_loss")
+        plt.legend()
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training Logs")
+        plt.savefig(os.path.join(self.ws_dir, "train_logs.png"))
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -155,7 +186,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ws_dir = "src/baseline/vit/result"
-    dataset = dataset_
+    dataset = ILSVRC2012Dataset()
     trainer = VitTrainer(
         ws_dir=ws_dir,
         dataset=dataset,
