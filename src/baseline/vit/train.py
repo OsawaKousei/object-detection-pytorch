@@ -1,4 +1,8 @@
+# python3 -m src.baseline.vit.train
+
+import logging
 import os
+from logging import Formatter, StreamHandler, getLogger
 
 import torch
 import torch.utils.data as data
@@ -8,6 +12,15 @@ from tqdm import tqdm
 
 from src.baseline.ILSVRC_dataset import valid_dataset as dataset_
 from src.baseline.vit.vit_model import Vit
+
+# ログの設定
+logger = getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler_format = Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+stream_handler = StreamHandler()
+stream_handler.setFormatter(handler_format)
+stream_handler.setLevel(logging.DEBUG)
+logger.addHandler(stream_handler)
 
 
 class VitTrainer:
