@@ -6,7 +6,11 @@ from logging import Formatter, StreamHandler, getLogger
 import pytest
 import torch
 
-from src.baseline.vit.layers import MultiHeadSelfAttention, VitInputLayer
+from src.baseline.vit.layers import (
+    MultiHeadSelfAttention,
+    VitEncorderBlock,
+    VitInputLayer,
+)
 
 # ログの設定
 logger = getLogger(__name__)
@@ -44,17 +48,32 @@ def _MultiHeadSelfAttention(z_0: torch.Tensor) -> torch.Tensor:
     return out
 
 
+def _VitEncorderBlock(out: torch.Tensor) -> torch.Tensor:
+    vit_encorder_block = VitEncorderBlock(emb_dim=384, head=3, drop_out=0.1)
+    z1: torch.Tensor = vit_encorder_block(out)
+
+    return z1
+
+
 def test_VitInputLayer() -> None:
     x = dummy_input()
     z_0 = _VitInputLayer(x)
     assert z_0.shape == (BATCH_SIZE, 5, 384)
 
 
-def test_MultiHeadAttention() -> torch.Tensor:
+def test_MultiHeadAttention() -> None:
     z_0 = _VitInputLayer(dummy_input())
 
     out = _MultiHeadSelfAttention(z_0)
     assert out.shape == (BATCH_SIZE, 5, 384)
+
+
+def test_VitEncorderBlock() -> None:
+    z_0 = _VitInputLayer(dummy_input())
+    out = _MultiHeadSelfAttention(z_0)
+
+    z1 = _VitEncorderBlock(out)
+    assert z1.shape == (BATCH_SIZE, 5, 384)
 
 
 # pytestを実行

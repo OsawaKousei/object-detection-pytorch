@@ -126,3 +126,31 @@ class MultiHeadSelfAttention(nn.Module):
         out = self.w_o(out)
 
         return out
+
+
+class VitEncorderBlock(nn.Module):
+    def __init__(
+        self,
+        emb_dim: int = 384,
+        head: int = 3,
+        hidden_dim: int = 384 * 4,
+        drop_out: float = 1,
+    ):
+        super(VitEncorderBlock, self).__init__()
+
+        self.ln1 = nn.LayerNorm(emb_dim)
+        self.msa = MultiHeadSelfAttention(emb_dim=emb_dim, head=head, drop_out=drop_out)
+        self.ln2 = nn.LayerNorm(emb_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(emb_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(drop_out),
+            nn.Linear(hidden_dim, emb_dim),
+            nn.Dropout(drop_out),
+        )
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        out = self.msa(self.ln1(z)) + z
+        out = self.mlp(self.ln2(out)) + out
+
+        return out
