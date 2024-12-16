@@ -1,4 +1,4 @@
-# python3 -m src.baseline.vit.test.layer_test
+# python3 -m src.baseline.vit.test.test_layers_and_model
 
 import logging
 from logging import Formatter, StreamHandler, getLogger
@@ -11,6 +11,7 @@ from src.baseline.vit.layers import (
     VitEncorderBlock,
     VitInputLayer,
 )
+from src.baseline.vit.vit_model import Vit
 
 # ログの設定
 logger = getLogger(__name__)
@@ -24,15 +25,27 @@ logger.addHandler(stream_handler)
 CHANNELS = 3
 BATCH_SIZE = 2
 
+IMG_SIZE = 32
+NUM_CLASSES = 10
+NUM_PATCH_ROW = 2
+NUM_BLOCKS = 7
+EMB_DIM = 384
+HIDDEN_DIM = EMB_DIM * 4
+DROP_OUT = 0.0
+HEAD = 8
+
 
 def dummy_input() -> torch.Tensor:
-    batch_size, channels, height, width = BATCH_SIZE, CHANNELS, 32, 32
+    batch_size, channels, height, width = BATCH_SIZE, CHANNELS, IMG_SIZE, IMG_SIZE
     return torch.randn(batch_size, channels, height, width)
 
 
 def _VitInputLayer(x: torch.Tensor) -> torch.Tensor:
     vit_input_layer = VitInputLayer(
-        in_channels=CHANNELS, emb_dim=384, num_patch_row=2, image_size=32
+        in_channels=CHANNELS,
+        emb_dim=EMB_DIM,
+        num_patch_row=NUM_PATCH_ROW,
+        image_size=IMG_SIZE,
     )
     z_0: torch.Tensor = vit_input_layer(x)
 
@@ -41,7 +54,7 @@ def _VitInputLayer(x: torch.Tensor) -> torch.Tensor:
 
 def _MultiHeadSelfAttention(z_0: torch.Tensor) -> torch.Tensor:
     multi_head_self_attention = MultiHeadSelfAttention(
-        emb_dim=384, head=3, drop_out=0.1
+        emb_dim=EMB_DIM, head=HEAD, drop_out=DROP_OUT
     )
     out: torch.Tensor = multi_head_self_attention(z_0)
 
@@ -49,23 +62,40 @@ def _MultiHeadSelfAttention(z_0: torch.Tensor) -> torch.Tensor:
 
 
 def _VitEncorderBlock(out: torch.Tensor) -> torch.Tensor:
-    vit_encorder_block = VitEncorderBlock(emb_dim=384, head=3, drop_out=0.1)
+    vit_encorder_block = VitEncorderBlock(emb_dim=EMB_DIM, head=HEAD, drop_out=DROP_OUT)
     z1: torch.Tensor = vit_encorder_block(out)
 
     return z1
 
 
+def _Vit(x: torch.Tensor) -> torch.Tensor:
+    vit = Vit(
+        in_channels=CHANNELS,
+        num_classes=NUM_CLASSES,
+        emb_dim=EMB_DIM,
+        num_patch_row=NUM_PATCH_ROW,
+        image_size=IMG_SIZE,
+        num_blocks=NUM_BLOCKS,
+        head=HEAD,
+        hidden_dim=HIDDEN_DIM,
+        drop_out=DROP_OUT,
+    )
+    pred: torch.Tensor = vit(x)
+
+    return pred
+
+
 def test_VitInputLayer() -> None:
     x = dummy_input()
     z_0 = _VitInputLayer(x)
-    assert z_0.shape == (BATCH_SIZE, 5, 384)
+    assert z_0.shape == (BATCH_SIZE, NUM_PATCH_ROW**2 + 1, EMB_DIM)
 
 
 def test_MultiHeadAttention() -> None:
     z_0 = _VitInputLayer(dummy_input())
 
     out = _MultiHeadSelfAttention(z_0)
-    assert out.shape == (BATCH_SIZE, 5, 384)
+    assert out.shape == (BATCH_SIZE, NUM_PATCH_ROW**2 + 1, EMB_DIM)
 
 
 def test_VitEncorderBlock() -> None:
@@ -73,9 +103,15 @@ def test_VitEncorderBlock() -> None:
     out = _MultiHeadSelfAttention(z_0)
 
     z1 = _VitEncorderBlock(out)
-    assert z1.shape == (BATCH_SIZE, 5, 384)
+    assert z1.shape == (BATCH_SIZE, NUM_PATCH_ROW**2 + 1, EMB_DIM)
+
+
+def test_Vit() -> None:
+    x = dummy_input()
+    pred = _Vit(x)
+    assert pred.shape == (BATCH_SIZE, NUM_CLASSES)
 
 
 # pytestを実行
 if __name__ == "__main__":
-    pytest.main(["src/baseline/vit/test/layer_test.py", "-s"])
+    pytest.main(["src/baseline/vit/test/test_layers_and_model.py", "-s"])
