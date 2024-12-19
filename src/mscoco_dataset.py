@@ -34,12 +34,14 @@ train_dataset = CocoObjectDetection(
     root=train_data_dir,
     annFile=anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
+    target_transform=None,
 )
 
 val_dataset = CocoObjectDetection(
     root=val_data_dir,
     annFile=anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
+    target_transform=None,
 )
 
 
@@ -56,6 +58,8 @@ if __name__ == "__main__":
 
     # データセットからデータを取得
     img, target = coco_dataset[0]
+
+    print(f"Image size: {img.size()}")
 
     # 画像の表示
     plt.imshow(img.permute(1, 2, 0))
