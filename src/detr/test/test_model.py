@@ -17,14 +17,19 @@ stream_handler.setFormatter(handler_format)
 stream_handler.setLevel(logging.DEBUG)
 logger.addHandler(stream_handler)
 
+BATCH_SIZE = 2
+IMG_SIZE = 300
+COLOR_CHANNELS = 3
+NUM_CLASSES = 91
+
 
 def dummy_input() -> torch.Tensor:
-    return torch.rand(2, 3, 800, 800)
+    return torch.rand(BATCH_SIZE, COLOR_CHANNELS, IMG_SIZE, IMG_SIZE)
 
 
 def _Detr(input: torch.Tensor) -> torch.Tensor:
     model = Detr(
-        num_classes=91,
+        num_classes=NUM_CLASSES,
         hidden_dim=256,
         nheads=8,
         num_encoder_layers=6,

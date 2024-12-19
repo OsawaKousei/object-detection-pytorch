@@ -1,6 +1,11 @@
+from logging import getLogger
+
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import ResNet50_Weights
+
+logger = getLogger("__main__").getChild(__name__)
 
 
 class Detr(nn.Module):
@@ -14,11 +19,15 @@ class Detr(nn.Module):
     ):
         super().__init__()
         self.backborn = nn.Sequential(
-            *list(models.resnet50(pretrained=True).children())[:-2]
+            *list(models.resnet50(weights=ResNet50_Weights.DEFAULT).children())[:-2]
         )
         self.conv = nn.Conv2d(2048, hidden_dim, 1)
         self.transformer = nn.Transformer(
-            hidden_dim, nheads, num_encoder_layers, num_decoder_layers
+            d_model=hidden_dim,
+            nhead=nheads,
+            num_encoder_layers=num_encoder_layers,
+            num_decoder_layers=num_decoder_layers,
+            batch_first=True,
         )
         self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
         self.linear_bbox = nn.Linear(hidden_dim, 4)
@@ -27,8 +36,16 @@ class Detr(nn.Module):
         self.col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
 
     def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = self.backborn(inputs)
-        h = self.conv(x)
+        logger.debug(f"inputs shape: {inputs.shape}")  # torch.Size([2, 3, 300, 300])
+
+        x: torch.Tensor = self.backborn(inputs)
+        logger.debug(
+            f"backborn output shape: {x.shape}"
+        )  # torch.Size([2, 2048, 10, 10])
+
+        h: torch.Tensor = self.conv(x)
+        logger.debug(f"conv output shape: {h.shape}")  # torch.Size([2, 256, 10, 10])
+
         H, W = h.shape[-2:]
         pos = (
             torch.cat(
@@ -41,9 +58,25 @@ class Detr(nn.Module):
             .flatten(0, 1)
             .unsqueeze(1)
         )
+        logger.debug(f"pos shape: {pos.shape}")  # torch.Size([100, 1, 256])
 
-        h = self.transformer(
-            pos + h.flatten(2).permute(2, 0, 1), self.query_pos.unsqueeze(1)
+        src: torch.Tensor = pos + h.flatten(2).permute(2, 0, 1)
+        tgt: torch.Tensor = self.query_pos.unsqueeze(1).repeat(1, inputs.shape[0], 1)
+        logger.debug(f"src shape: {src.shape}")  # torch.Size([100, 2, 256])
+        logger.debug(f"tgt shape: {tgt.shape}")  # torch.Size([100, 2, 256])
+
+        out: torch.Tensor = self.transformer(
+            src=src,
+            tgt=tgt,
         )
+        logger.debug(
+            f"transformer output shape: {out.shape}"
+        )  # torch.Size([2, 256, 10 ,10])
 
-        return self.linear_class(h), self.linear_bbox(h).sigmoid()
+        out = out.permute(1, 0, 2).reshape(inputs.shape[0], -1, out.shape[-1])
+        logger.debug(f"out shape: {out.shape}")
+
+        return (
+            self.linear_class(out),
+            self.linear_bbox(out).sigmoid(),
+        )  # torch.Size([2, 100, 92]), torch.Size([2, 100, 4])
