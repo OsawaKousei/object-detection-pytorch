@@ -5,7 +5,8 @@ Modules to compute the matching cost and solve the corresponding LSAP.
 import torch
 from scipy.optimize import linear_sum_assignment
 from torch import nn
-from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
+
+from src.detr.util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 
 
 class HungarianMatcher(nn.Module):
@@ -35,7 +36,7 @@ class HungarianMatcher(nn.Module):
         ), "all costs cant be 0"
 
     @torch.no_grad()
-    def forward(self, outputs, targets):
+    def forward(self, outputs: torch.Tensor, targets: list[torch.Tensor]) -> list:
         """Performs the matching
 
         Params:
@@ -99,11 +100,3 @@ class HungarianMatcher(nn.Module):
             )
             for i, j in indices
         ]
-
-
-def build_matcher(args):
-    return HungarianMatcher(
-        cost_class=args.set_cost_class,
-        cost_bbox=args.set_cost_bbox,
-        cost_giou=args.set_cost_giou,
-    )

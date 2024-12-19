@@ -35,7 +35,7 @@ class Detr(nn.Module):
         self.row_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
         self.col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
 
-    def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, inputs: torch.Tensor) -> dict[str, torch.Tensor]:
         logger.debug(f"inputs shape: {inputs.shape}")  # torch.Size([2, 3, 300, 300])
 
         x: torch.Tensor = self.backborn(inputs)
@@ -73,10 +73,9 @@ class Detr(nn.Module):
             f"transformer output shape: {out.shape}"
         )  # torch.Size([2, 256, 10 ,10])
 
-        out = out.permute(1, 0, 2).reshape(inputs.shape[0], -1, out.shape[-1])
-        logger.debug(f"out shape: {out.shape}")
+        pred_class = self.linear_class(out)  # torch.Size([2, 100, 91])
+        pred_box = self.linear_bbox(out).sigmoid()  # torch.Size([2, 100, 4])
+        logger.debug(f"pred_class shape: {pred_class.shape}")
+        logger.debug(f"pred_box shape: {pred_box.shape}")
 
-        return (
-            self.linear_class(out),
-            self.linear_bbox(out).sigmoid(),
-        )  # torch.Size([2, 100, 92]), torch.Size([2, 100, 4])
+        return {"pred_logits": pred_class, "pred_boxes": pred_box}
