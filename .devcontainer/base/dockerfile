@@ -59,7 +59,7 @@ RUN apt-get update && \
     liblzma-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install pkgs for PyQt5
+# Install pkgs for PyQt5 and cv2
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libxkbcommon-x11-0 \
@@ -75,7 +75,8 @@ RUN apt-get update && \
     libxcb-xfixes0 \
     libxcb-xinput0 \
     libxcb-xkb1 \
-    libxcb-xrm0 && \
+    libxcb-xrm0 \
+    libgl1-mesa-glx && \
     rm -rf /var/lib/apt/lists/*
 
 # Add user and group, then allow sudo

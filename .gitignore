@@ -1,4 +1,7 @@
-*.pyc
-.mypy_cache/
+# cache
+__pycache__
+.mypy_cache
+.pytest_cache
 
+# results
 result/
