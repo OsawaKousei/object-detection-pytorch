@@ -2,13 +2,17 @@ import matplotlib.pyplot as plt
 import torch
 from torchvision import datasets, transforms
 
-# 物体検出用のアノテーション情報
-anno_path = (
+train_anno_path = (
+    "/home/kousei/dataset/image_datasets/ms-coco/annotations/instances_train2017.json"
+)
+val_anno_path = (
     "/home/kousei/dataset/image_datasets/ms-coco/annotations/instances_val2017.json"
 )
 
 train_data_dir = "/home/kousei/dataset/image_datasets/ms-coco/train2017"
 val_data_dir = "/home/kousei/dataset/image_datasets/ms-coco/val2017"
+
+IMG_SIZE = 300
 
 
 class CocoObjectDetection(datasets.CocoDetection):
@@ -24,6 +28,17 @@ class CocoObjectDetection(datasets.CocoDetection):
             "labels": torch.tensor([obj["category_id"] for obj in target]),
             "boxes": torch.tensor([obj["bbox"] for obj in target]),
         }
+        # bboxの値を画像のサイズで割って正規化
+        _, w, h = image.size()
+        target["boxes"][:, [1, 3]] /= w
+        target["boxes"][:, [0, 2]] /= h
+
+        # bboxの値をIMG_SIZEを基準にリサイズ
+        target["boxes"] *= IMG_SIZE
+
+        # 画像をリサイズ
+        image = transforms.functional.resize(image, (IMG_SIZE, IMG_SIZE))
+
         return image, target
 
     def __len__(self):
@@ -32,32 +47,24 @@ class CocoObjectDetection(datasets.CocoDetection):
 
 train_dataset = CocoObjectDetection(
     root=train_data_dir,
-    annFile=anno_path,
+    annFile=train_anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
     target_transform=None,
 )
 
 val_dataset = CocoObjectDetection(
     root=val_data_dir,
-    annFile=anno_path,
+    annFile=val_anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
     target_transform=None,
 )
 
 
 if __name__ == "__main__":
-    root = val_data_dir
-    annFile = anno_path
-    coco_dataset = CocoObjectDetection(
-        root=root,
-        annFile=annFile,
-        transform=transforms.Compose([transforms.ToTensor()]),
-    )
-
-    print(f"Number of samples: {len(coco_dataset)}")
+    print(f"Number of samples: {len(train_dataset)}")
 
     # データセットからデータを取得
-    img, target = coco_dataset[0]
+    img, target = train_dataset[0]
 
     print(f"Image size: {img.size()}")
 
