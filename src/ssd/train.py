@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
     # SSD300の設定
     ssd_cfg = {
-        "num_classes": 21,  # 背景クラスを含めた合計クラス数
+        "num_classes": 92,  # 背景クラスを含めた合計クラス数
         "input_size": 300,  # 画像の入力サイズ
         "bbox_aspect_num": [4, 6, 6, 6, 4, 4],  # 出力するDBoxのアスペクト比の種類
         "feature_maps": [38, 19, 10, 5, 3, 1],  # 各sourceの画像サイズ
