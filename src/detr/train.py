@@ -1,3 +1,5 @@
+# python3 -m src.detr.train
+
 import logging
 import os
 from logging import Formatter, StreamHandler, getLogger
@@ -10,6 +12,11 @@ import torch.utils.data as data
 from torch import nn, optim
 from tqdm import tqdm
 
+import src.mscoco_dataset as msooco_dataset
+from src.detr.loss import SetCriterion
+from src.detr.matcher import HungarianMatcher
+from src.detr.model import Detr
+
 # ログの設定
 logger = getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -20,14 +27,12 @@ stream_handler.setLevel(logging.DEBUG)
 logger.addHandler(stream_handler)
 
 
-class VitTrainer:
+class DetrTrainer:
     def __init__(
         self,
         ws_dir: str,
-        dataset: data.Dataset,
-        num_classes: int,
-        num_queries: int,
-        aux_loss: bool,
+        train_dataset: data.Dataset,
+        valid_dataset: data.Dataset,
         net: nn.Module,
         criterion: nn.Module,
         optimizer: optim.Optimizer,
@@ -39,13 +44,6 @@ class VitTrainer:
         self.criterion = criterion
         self.optimizer = optimizer
         self.device = device
-
-        # datasetをランダムに分割
-        valid_size = int(0.1 * len(dataset))
-        train_size = len(dataset) - valid_size
-        train_dataset, valid_dataset = data.random_split(
-            dataset, [train_size, valid_size]
-        )
 
         self.train_dataloader = data.DataLoader(
             train_dataset, batch_size=batch_size, shuffle=True, num_workers=4
@@ -164,3 +162,43 @@ class VitTrainer:
         plt.title("Training Logs")
         plt.savefig(os.path.join(self.ws_dir, "train_logs.png"))
         plt.close()
+
+
+if __name__ == "__main__":
+    net = Detr(
+        num_classes=10,
+        hidden_dim=256,
+        nheads=8,
+        num_encoder_layers=6,
+        num_decoder_layers=6,
+    )
+
+    matcher = HungarianMatcher(
+        cost_class=1,
+        cost_bbox=5,
+        cost_giou=2,
+    )
+
+    criterion = SetCriterion(
+        num_classes=10,
+        matcher=matcher,
+        num_queries=100,
+        aux_loss=True,
+    )
+
+    optimizer = optim.Adam(net.parameters(), lr=1e-4)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    trainer = DetrTrainer(
+        ws_dir=".",
+        train_dataset=msooco_dataset.train_dataset,
+        valid_dataset=msooco_dataset.val_dataset,
+        net=net,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        batch_size=32,
+        num_epochs=50,
+    )
+
+    trainer.train()
