@@ -7,7 +7,8 @@ import cv2  # OpenCVライブラリ
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from utils.ssd_model import DataTransform
+
+from src.ssd.utils.ssd_model import DataTransform
 
 
 class SSDPredictShow:

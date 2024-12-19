@@ -18,7 +18,6 @@ from src.detr.matcher import HungarianMatcher
 from src.detr.model import Detr
 from src.mscoco_dataset import od_collate_fn
 
-
 # ログの設定
 logger = getLogger(__name__)
 logger.setLevel(logging.DEBUG)

@@ -21,7 +21,7 @@ import torch.utils.data as data
 from torch.autograd import Function
 
 # フォルダ「utils」のdata_augumentation.pyからimport。入力画像の前処理をするクラス
-from utils.data_augumentation import (
+from src.ssd.utils.data_augumentation import (
     Compose,
     ConvertFromInts,
     Expand,
@@ -35,7 +35,7 @@ from utils.data_augumentation import (
 )
 
 # フォルダ「utils」にある関数matchを記述したmatch.pyからimport
-from utils.match import match
+from src.ssd.utils.match import match
 
 # 学習、検証の画像データとアノテーションデータへのファイルパスリストを作成する
 

@@ -56,7 +56,8 @@ RUN apt-get update && \
     libxml2-dev \
     libxmlsec1-dev \
     libffi-dev \
-    liblzma-dev && \
+    liblzma-dev \
+    libgl1-mesa-glx && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pkgs for PyQt5 and cv2

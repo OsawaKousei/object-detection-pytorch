@@ -1,4 +1,4 @@
-# python3 -m src.detr.train
+# python3 -m src.ssd.train
 
 import logging
 import os
@@ -15,9 +15,9 @@ from torch import nn, optim
 from tqdm import tqdm
 
 import src.mscoco_dataset as msooco_dataset
-from src.mscoco_dataset import od_collate_fn
+from src.ssd.loss_function import MultiBoxLoss
 from src.ssd.model import SSD
-from src.ssd.utils.ssd_model import MultiBoxLoss
+from src.ssd.utils.util_function import od_collate_fn
 
 # ログの設定
 logger = getLogger(__name__)
@@ -74,72 +74,56 @@ class SSDTrainer:
         # 学習と検証
         with tqdm(range(self.num_epochs), desc="Epoch") as tglobal:
             train_loss: list[float] = []
-            train_acc: list[float] = []
+
             val_loss: list[float] = []
-            val_acc: list[float] = []
             logs: list[dict] = []
 
             for epoch in tglobal:
                 # 学習
                 with tqdm(self.train_dataloader, desc="Train", leave=False) as t:
                     sum_loss = 0.0  # lossの合計
-                    sum_correct = 0  # 正解率の合計
-                    sum_total = 0  # dataの数の合計
 
                     for inputs, labels in t:
-                        inputs, labels = inputs.to(self.device), labels.to(self.device)
+                        inputs = inputs.to(self.device)
+                        labels = [ann.to(self.device) for ann in labels]
                         self.optimizer.zero_grad()
                         outputs = self.net(inputs)
                         loss = self.criterion(outputs, labels)
-                        sum_loss += loss.item()
-                        sum_total += labels.size(0)
-                        predicted = torch.argmax(outputs, dim=1)
-                        gt = torch.argmax(labels, dim=1)
-                        sum_correct += (predicted == gt).sum().item()
-                        loss.backward()
+                        losses = sum(loss.values())
+                        sum_loss += losses.item()
+                        losses.backward()
                         self.optimizer.step()
 
-                        t.set_postfix(loss=loss.item())
+                        t.set_postfix(loss=losses.item())
 
                     loss = (
                         sum_loss * self.batch_size / len(self.train_dataloader.dataset)
                     )
-                    acc = float(sum_correct / sum_total)
                     train_loss.append(loss)
-                    train_acc.append(acc)
 
                 # 検証
                 with tqdm(self.valid_dataloader, desc="Valid", leave=False) as v:
                     sum_loss = 0.0
-                    sum_correct = 0
-                    sum_total = 0
 
                     with torch.no_grad():
                         for inputs, labels in v:
-                            inputs, labels = inputs.to(self.device), labels.to(
-                                self.device
-                            )
+                            inputs = inputs.to(self.device)
+                            labels = [ann.to(self.device) for ann in labels]
                             self.optimizer.zero_grad()
                             outputs = self.net(inputs)
                             loss = self.criterion(outputs, labels)
-                            sum_loss += loss.item()
-                            sum_total += labels.size(0)
-                            predicted = torch.argmax(outputs, dim=1)
-                            gt = torch.argmax(labels, dim=1)
-                            sum_correct += (predicted == gt).sum().item()
-
-                            v.set_postfix(loss=loss.item())
+                            losses = sum(loss.values())
+                            sum_loss += losses.item()
+                            v.set_postfix(loss=losses.item())
 
                         loss = (
                             sum_loss
                             * self.batch_size
                             / len(self.valid_dataloader.dataset)
                         )
-                        acc = float(sum_correct / sum_total)
                         val_loss.append(loss)
-                        val_acc.append(acc)
 
-                tglobal.set_postfix(loss=loss, acc=acc)
+                tglobal.set_postfix(train_loss=loss, val_loss=loss)
 
                 logs.append(
                     {
@@ -181,7 +165,8 @@ if __name__ == "__main__":
     np.random.seed(1234)
     random.seed(1234)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     print("使用デバイス：", device)
 
     # SSD300の設定
@@ -201,7 +186,7 @@ if __name__ == "__main__":
 
     # SSDの初期の重みを設定
     # ssdのvgg部分に重みをロードする
-    vgg_weights = torch.load("./weights/vgg16_reducedfc.pth")
+    vgg_weights = torch.load("src/ssd/weights/vgg16_reducedfc.pth")
     net.vgg.load_state_dict(vgg_weights)
 
     # ssdのその他のネットワークの重みはHeの初期値で初期化
@@ -218,7 +203,8 @@ if __name__ == "__main__":
     net.conf.apply(weights_init)
 
     # GPUが使えるかを確認
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     print("使用デバイス：", device)
 
     print("ネットワーク設定完了：学習済みの重みをロードしました")
@@ -230,7 +216,7 @@ if __name__ == "__main__":
     optimizer = optim.SGD(net.parameters(), lr=1e-3, momentum=0.9, weight_decay=5e-4)
 
     trainer = SSDTrainer(
-        ws_dir=".",
+        ws_dir="src/ssd/results",
         train_dataset=msooco_dataset.train_dataset,
         valid_dataset=msooco_dataset.val_dataset,
         net=net,

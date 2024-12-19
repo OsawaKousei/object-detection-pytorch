@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # フォルダ「utils」にある関数matchを記述したmatch.pyからimport
-from utils.match import match
+from src.ssd.utils.match import match
 
 
 class MultiBoxLoss(nn.Module):

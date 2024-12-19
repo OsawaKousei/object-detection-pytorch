@@ -6,6 +6,7 @@ from logging import Formatter, StreamHandler, getLogger
 import pytest
 import torch
 
+from src.ssd.loss_function import MultiBoxLoss
 from src.ssd.model import SSD
 
 # ログの設定
@@ -20,6 +21,10 @@ logger.addHandler(stream_handler)
 
 def dummy_input() -> torch.Tensor:
     return torch.rand(2, 3, 300, 300)
+
+
+def dummy_target() -> torch.Tensor:
+    return torch.rand(2, 2, 5)
 
 
 def _SSD(input: torch.Tensor) -> torch.Tensor:
@@ -47,9 +52,20 @@ def test_SSD() -> None:
     logger.debug(f"loc shape: {output[0].shape}")
     logger.debug(f"conf shape: {output[1].shape}")
     logger.debug(f"dbox_list shape: {output[2].shape}")
-    assert output[0].shape == (2, 100, 92)
-    assert output[1].shape == (2, 100, 4)
-    logger.info("Detr test passed")
+    assert output[0].shape == (2, 8732, 4)
+    assert output[1].shape == (2, 8732, 92)
+    assert output[2].shape == (8732, 4)
+
+
+def test_loss() -> None:
+    input = dummy_input()
+    output = _SSD(input)
+    loss_function = MultiBoxLoss(jaccard_thresh=0.5, neg_pos=3, device="cpu")
+    loss = loss_function(output, dummy_target())
+    logger.debug(f"loc loss: {loss[0]}")
+    logger.debug(f"conf loss: {loss[1]}")
+    assert loss[0].shape == ()
+    assert loss[1].shape == ()
 
 
 # pytestを実行
