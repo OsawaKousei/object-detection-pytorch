@@ -1,14 +1,19 @@
 import matplotlib.pyplot as plt
 import torch
+from PIL import Image
 from torchvision import datasets, transforms
 
-# 物体検出用のアノテーション情報
-anno_path = (
+train_anno_path = (
+    "/home/kousei/dataset/image_datasets/ms-coco/annotations/instances_train2017.json"
+)
+val_anno_path = (
     "/home/kousei/dataset/image_datasets/ms-coco/annotations/instances_val2017.json"
 )
 
 train_data_dir = "/home/kousei/dataset/image_datasets/ms-coco/train2017"
 val_data_dir = "/home/kousei/dataset/image_datasets/ms-coco/val2017"
+
+IMG_SIZE = 300
 
 
 class CocoObjectDetection(datasets.CocoDetection):
@@ -17,47 +22,103 @@ class CocoObjectDetection(datasets.CocoDetection):
             root, annFile, transform, target_transform
         )
 
-    def __getitem__(self, index):
-        image, target = super(CocoObjectDetection, self).__getitem__(index)
-        target = {
-            "image_id": target[0]["image_id"],
-            "labels": torch.tensor([obj["category_id"] for obj in target]),
-            "boxes": torch.tensor([obj["bbox"] for obj in target]),
+        # アノテーションが存在する画像IDを取得
+        valid_image_ids = {
+            ann["image_id"] for ann in self.coco.loadAnns(self.coco.getAnnIds())
         }
+        # アノテーションが存在する画像のみをフィルタリング
+        self.ids = [
+            img["id"] for img in self.coco.imgs.values() if img["id"] in valid_image_ids
+        ]
+        self.images = [self.coco.imgs[img_id] for img_id in self.ids]
+
+        # データセットの長さを更新
+        self.length = len(self.ids)
+
+    def __getitem__(self, index):
+        image_id = self.ids[index]
+        img_info = self.coco.imgs[image_id]
+        img_path = self.coco.loadImgs(image_id)[0]["file_name"]
+        img_path = f"{self.root}/{img_path}"
+
+        # 画像の読み込み
+        image = Image.open(img_path).convert("RGB")
+        # 画像のリサイズ
+        image = image.resize((IMG_SIZE, IMG_SIZE))
+
+        # アノテーションの取得
+        ann_ids = self.coco.getAnnIds(imgIds=image_id)
+        anns = self.coco.loadAnns(ann_ids)
+
+        # アノテーションが存在しない場合はエラーを投げる
+        if len(anns) == 0:
+            raise IndexError(f"No annotations found for image_id {image_id}")
+
+        # ラベルとボックスの取得
+        labels = torch.tensor([ann["category_id"] for ann in anns], dtype=torch.long)
+        boxes = torch.tensor([ann["bbox"] for ann in anns], dtype=torch.float32)
+
+        # バウンディングボックスが1つの場合でも2次元にする
+        if boxes.dim() == 1:
+            boxes = boxes.unsqueeze(0)
+
+        # 画像のサイズを取得
+        w, h = img_info["width"], img_info["height"]
+
+        # バウンディングボックスを正規化
+        boxes[:, [0, 2]] /= w  # x_min, x_max
+        boxes[:, [1, 3]] /= h  # y_min, y_max
+
+        # バウンディングボックスをIMG_SIZEを基準にリサイズ
+        boxes *= IMG_SIZE
+
+        target = {
+            "labels": labels,
+            "boxes": boxes,
+            "image_id": torch.tensor([image_id], dtype=torch.long),
+        }
+
+        if self.transform:
+            image = self.transform(image)
+
         return image, target
 
     def __len__(self):
-        return len(self.ids)
+        return self.length
 
 
 train_dataset = CocoObjectDetection(
     root=train_data_dir,
-    annFile=anno_path,
+    annFile=train_anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
     target_transform=None,
 )
 
 val_dataset = CocoObjectDetection(
     root=val_data_dir,
-    annFile=anno_path,
+    annFile=val_anno_path,
     transform=transforms.Compose([transforms.ToTensor()]),
     target_transform=None,
 )
 
 
-if __name__ == "__main__":
-    root = val_data_dir
-    annFile = anno_path
-    coco_dataset = CocoObjectDetection(
-        root=root,
-        annFile=annFile,
-        transform=transforms.Compose([transforms.ToTensor()]),
-    )
+def od_collate_fn(batch):
+    targets = []
+    imgs = []
 
-    print(f"Number of samples: {len(coco_dataset)}")
+    for sample in batch:
+        imgs.append(sample[0])
+        targets.append(sample[1])
+
+    return torch.stack(imgs, dim=0), targets
+
+
+if __name__ == "__main__":
+    print(f"Number of samples: {len(train_dataset)}")
 
     # データセットからデータを取得
-    img, target = coco_dataset[0]
+    img, target = train_dataset[0]
+
 
     print(f"Image size: {img.size()}")
 

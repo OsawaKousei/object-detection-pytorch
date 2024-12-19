@@ -16,6 +16,8 @@ import src.mscoco_dataset as msooco_dataset
 from src.detr.loss import SetCriterion
 from src.detr.matcher import HungarianMatcher
 from src.detr.model import Detr
+from src.mscoco_dataset import od_collate_fn
+
 
 # ログの設定
 logger = getLogger(__name__)
@@ -23,7 +25,7 @@ logger.setLevel(logging.DEBUG)
 handler_format = Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 stream_handler = StreamHandler()
 stream_handler.setFormatter(handler_format)
-stream_handler.setLevel(logging.DEBUG)
+stream_handler.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
 
 
@@ -46,11 +48,19 @@ class DetrTrainer:
         self.device = device
 
         self.train_dataloader = data.DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True, num_workers=4
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=4,
+            collate_fn=od_collate_fn,
         )
 
         self.valid_dataloader = data.DataLoader(
-            valid_dataset, batch_size=batch_size, shuffle=False, num_workers=4
+            valid_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=4,
+            collate_fn=od_collate_fn,
         )
 
         self.ws_dir = ws_dir
@@ -64,45 +74,38 @@ class DetrTrainer:
         # 学習と検証
         with tqdm(range(self.num_epochs), desc="Epoch") as tglobal:
             train_loss: list[float] = []
-            train_acc: list[float] = []
+
             val_loss: list[float] = []
-            val_acc: list[float] = []
             logs: list[dict] = []
 
             for epoch in tglobal:
                 # 学習
                 with tqdm(self.train_dataloader, desc="Train", leave=False) as t:
                     sum_loss = 0.0  # lossの合計
-                    sum_correct = 0  # 正解率の合計
-                    sum_total = 0  # dataの数の合計
 
                     for inputs, labels in t:
-                        inputs, labels = inputs.to(self.device), labels.to(self.device)
+                        inputs = inputs.to(self.device)
+                        labels = [
+                            {k: v.to(self.device) for k, v in t.items()} for t in labels
+                        ]
                         self.optimizer.zero_grad()
                         outputs = self.net(inputs)
                         loss = self.criterion(outputs, labels)
-                        sum_loss += loss.item()
-                        sum_total += labels.size(0)
-                        predicted = torch.argmax(outputs, dim=1)
-                        gt = torch.argmax(labels, dim=1)
-                        sum_correct += (predicted == gt).sum().item()
-                        loss.backward()
+                        losses = sum(loss.values())
+                        sum_loss += losses.item()
+                        losses.backward()
                         self.optimizer.step()
 
-                        t.set_postfix(loss=loss.item())
+                        t.set_postfix(loss=losses.item())
 
                     loss = (
                         sum_loss * self.batch_size / len(self.train_dataloader.dataset)
                     )
-                    acc = float(sum_correct / sum_total)
                     train_loss.append(loss)
-                    train_acc.append(acc)
 
                 # 検証
                 with tqdm(self.valid_dataloader, desc="Valid", leave=False) as v:
                     sum_loss = 0.0
-                    sum_correct = 0
-                    sum_total = 0
 
                     with torch.no_grad():
                         for inputs, labels in v:
@@ -112,24 +115,18 @@ class DetrTrainer:
                             self.optimizer.zero_grad()
                             outputs = self.net(inputs)
                             loss = self.criterion(outputs, labels)
-                            sum_loss += loss.item()
-                            sum_total += labels.size(0)
-                            predicted = torch.argmax(outputs, dim=1)
-                            gt = torch.argmax(labels, dim=1)
-                            sum_correct += (predicted == gt).sum().item()
-
-                            v.set_postfix(loss=loss.item())
+                            losses = sum(loss.values())
+                            sum_loss += losses.item()
+                            v.set_postfix(loss=losses.item())
 
                         loss = (
                             sum_loss
                             * self.batch_size
                             / len(self.valid_dataloader.dataset)
                         )
-                        acc = float(sum_correct / sum_total)
                         val_loss.append(loss)
-                        val_acc.append(acc)
 
-                tglobal.set_postfix(loss=loss, acc=acc)
+                tglobal.set_postfix(train_loss=loss, val_loss=loss)
 
                 logs.append(
                     {
@@ -166,31 +163,28 @@ class DetrTrainer:
 
 if __name__ == "__main__":
     net = Detr(
-        num_classes=10,
+        num_classes=91,
         hidden_dim=256,
         nheads=8,
         num_encoder_layers=6,
         num_decoder_layers=6,
     )
 
-    matcher = HungarianMatcher(
-        cost_class=1,
-        cost_bbox=5,
-        cost_giou=2,
-    )
+    matcher = HungarianMatcher()
 
     criterion = SetCriterion(
-        num_classes=10,
+        num_classes=91,
         matcher=matcher,
-        num_queries=100,
-        aux_loss=True,
+        eos_coef=0.1,
+        losses=["labels", "boxes"],
     )
 
     optimizer = optim.Adam(net.parameters(), lr=1e-4)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
 
     trainer = DetrTrainer(
-        ws_dir=".",
+        ws_dir="src/detr/result",
         train_dataset=msooco_dataset.train_dataset,
         valid_dataset=msooco_dataset.val_dataset,
         net=net,
