@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from src.detr.util import box_ops
-from src.detr.util.misc import accuracy, get_world_size, is_dist_avail_and_initialized
+from src.detr.util.misc import get_world_size, is_dist_avail_and_initialized
 
 
 class SetCriterion(nn.Module):
@@ -53,9 +53,9 @@ class SetCriterion(nn.Module):
         loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes)
         losses = {"loss_ce": loss_ce}
 
-        if log:
-            # TODO this should probably be a separate loss, not hacked in this one here
-            losses["class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
+        # if log:
+        #     # TODO this should probably be a separate loss, not hacked in this one here
+        #     losses["class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
