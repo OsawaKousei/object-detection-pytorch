@@ -119,6 +119,7 @@ if __name__ == "__main__":
     # データセットからデータを取得
     img, target = train_dataset[0]
 
+
     print(f"Image size: {img.size()}")
 
     # 画像の表示

@@ -18,6 +18,7 @@ from src.detr.matcher import HungarianMatcher
 from src.detr.model import Detr
 from src.mscoco_dataset import od_collate_fn
 
+
 # ログの設定
 logger = getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -73,6 +74,7 @@ class DetrTrainer:
         # 学習と検証
         with tqdm(range(self.num_epochs), desc="Epoch") as tglobal:
             train_loss: list[float] = []
+
             val_loss: list[float] = []
             logs: list[dict] = []
 

@@ -6,12 +6,14 @@ from src.detr.util import box_ops
 from src.detr.util.misc import get_world_size, is_dist_avail_and_initialized
 
 
+
 class SetCriterion(nn.Module):
     """This class computes the loss for DETR.
     The process happens in two steps:
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
+
 
     def __init__(self, num_classes, matcher, eos_coef, losses):
         """Create the criterion.
@@ -56,6 +58,7 @@ class SetCriterion(nn.Module):
         # if log:
         #     # TODO this should probably be a separate loss, not hacked in this one here
         #     losses["class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
+
         return losses
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
@@ -96,6 +99,7 @@ class SetCriterion(nn.Module):
         loss_map = {
             "labels": self.loss_labels,
             "boxes": self.loss_boxes,
+
         }
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
